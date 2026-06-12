@@ -4,7 +4,7 @@ plugins {
 }
 
 group 'run.halo.gallery'
-version '1.0.0-SNAPSHOT'
+version project.findProperty('version') ?: '1.0.0-SNAPSHOT'
 
 repositories {
     mavenCentral()
@@ -15,7 +15,7 @@ repositories {
 def springBootVersion = '3.4.5'
 
 dependencies {
-    compileOnly 'run.halo.app:api:2.24.0-SNAPSHOT'
+    compileOnly 'run.halo.app:api:2.24.0'
     compileOnly "org.springframework.boot:spring-boot-starter-webflux:${springBootVersion}"
     compileOnly 'org.springdoc:springdoc-openapi-starter-webflux-ui:2.8.6'
     compileOnly 'org.pf4j:pf4j:3.12.0'

@@ -5,6 +5,7 @@ metadata:
 spec:
   enabled: true
   version: "1.0.0"
+
   requires: ">=2.20.0"
   author:
     name: "webrong"
