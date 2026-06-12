@@ -1,0 +1,24 @@
+apiVersion: v1alpha1
+kind: Setting
+metadata:
+  name: plugin-photo-gallery-settings
+spec:
+  forms:
+    - group: base
+      label: 基本设置
+      formSchema:
+        - $formkit: text
+          label: 页面标题
+          name: title
+          validation: required
+          value: "相册"
+        - $formkit: text
+          label: 每页显示相册数
+          name: pageSize
+          validation: required|Number
+          value: 12
+        - $formkit: text
+          label: 相册详情每页照片数
+          name: photoPageSize
+          validation: required|Number
+          value: 20

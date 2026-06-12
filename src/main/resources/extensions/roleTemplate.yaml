@@ -1,0 +1,43 @@
+apiVersion: v1alpha1
+kind: Role
+metadata:
+  name: role-template-gallery-view
+  labels:
+    halo.run/role-template: "true"
+  annotations:
+    rbac.authorization.halo.run/module: "相册"
+    rbac.authorization.halo.run/ui-permissions: '["plugin:photo-gallery:view"]'
+    rbac.authorization.halo.run/display-name: "相册查看"
+rules:
+  - apiGroups: [ "gallery.halo.run", "console.api.gallery.halo.run" ]
+    resources: [ "albums", "photos", "albumgroups" ]
+    verbs: [ "get", "list" ]
+---
+apiVersion: v1alpha1
+kind: Role
+metadata:
+  name: role-template-gallery-manage
+  labels:
+    halo.run/role-template: "true"
+  annotations:
+    rbac.authorization.halo.run/dependencies: '["role-template-gallery-view"]'
+    rbac.authorization.halo.run/ui-permissions: '["plugin:photo-gallery:manage"]'
+    rbac.authorization.halo.run/module: "相册"
+    rbac.authorization.halo.run/display-name: "相册管理"
+rules:
+  - apiGroups: [ "gallery.halo.run", "console.api.gallery.halo.run" ]
+    resources: [ "albums", "photos", "albumgroups" ]
+    verbs: [ "create", "patch", "update", "delete", "deletecollection" ]
+---
+apiVersion: v1alpha1
+kind: Role
+metadata:
+  name: role-template-gallery-anonymous
+  labels:
+    halo.run/role-template: "true"
+    halo.run/hidden: "true"
+    rbac.authorization.halo.run/aggregate-to-anonymous: "true"
+rules:
+  - apiGroups: [ "api.gallery.halo.run" ]
+    resources: [ "albums", "photos", "albumgroups" ]
+    verbs: [ "get", "list" ]

@@ -1,0 +1,18 @@
+apiVersion: plugin.halo.run/v1alpha1
+kind: Plugin
+metadata:
+  name: plugin-photo-gallery
+spec:
+  enabled: true
+  version: "1.0.0"
+  requires: ">=2.20.0"
+  author:
+    name: "webrong"
+  logo: "https://img.icons8.com/fluency/48/photo-gallery.png"
+  displayName: "相册管理"
+  description: "相册管理插件，支持创建相册、管理照片，前台展示相册列表和详情页"
+  settingName: "plugin-photo-gallery-settings"
+  configMapName: "plugin-photo-gallery-configmap"
+  license:
+    - name: "GPL-3.0"
+      url: "https://opensource.org/licenses/GPL-3.0"

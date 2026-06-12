@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title th:text="${title}">相册详情</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #fafafa; color: #333; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 40px 24px; }
+    .album-header { margin-bottom: 32px; }
+    .album-header h1 { font-size: 32px; margin-bottom: 8px; }
+    .album-header p { color: #666; }
+    .back-link { display: inline-block; margin-bottom: 16px; color: #0066cc; text-decoration: none; }
+    .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+    .photo-item { border-radius: 8px; overflow: hidden; cursor: pointer; }
+    .photo-item img { width: 100%; height: 200px; object-fit: cover; transition: transform 0.2s; }
+    .photo-item:hover img { transform: scale(1.05); }
+    .pagination { display: flex; justify-content: center; gap: 16px; margin-top: 32px; }
+    .pagination a { padding: 8px 16px; border: 1px solid #ddd; border-radius: 6px; text-decoration: none; color: #333; }
+    .pagination a:hover { background: #f0f0f0; }
+    .lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 1000; justify-content: center; align-items: center; }
+    .lightbox.active { display: flex; }
+    .lightbox img { max-width: 90vw; max-height: 85vh; object-fit: contain; }
+    .lightbox-close { position: absolute; top: 20px; right: 20px; color: #fff; font-size: 32px; cursor: pointer; background: none; border: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a class="back-link" href="/gallery">&larr; 返回相册列表</a>
+    <div class="album-header">
+      <h1 th:text="${album.spec.displayName}">相册名称</h1>
+      <p th:if="${album.spec.description}" th:text="${album.spec.description}">描述</p>
+    </div>
+    <div class="photo-grid" id="photoGrid">
+      <div class="photo-item" th:each="photo : ${photos.items}"
+           th:data-src="${photo.spec.url}" th:data-title="${photo.spec.title}"
+           onclick="openLightbox(this)">
+        <img th:src="${#strings.isEmpty(photo.spec.thumbnail) ? photo.spec.url : photo.spec.thumbnail}" th:alt="${photo.spec.title}" loading="lazy" />
+      </div>
+    </div>
+    <div class="pagination" th:if="${photos.hasPrevious() or photos.hasNext()}">
+      <a th:if="${photos.hasPrevious()}" th:href="${photos.prevUrl}">&larr; 上一页</a>
+      <a th:if="${photos.hasNext()}" th:href="${photos.nextUrl}">下一页 &rarr;</a>
+    </div>
+  </div>
+  <div class="lightbox" id="lightbox">
+    <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
+    <img id="lightboxImg" src="" alt="" />
+  </div>
+  <script>
+    function openLightbox(el) {
+      var lb = document.getElementById('lightbox');
+      document.getElementById('lightboxImg').src = el.getAttribute('data-src');
+      document.getElementById('lightboxImg').alt = el.getAttribute('data-title');
+      lb.classList.add('active');
+    }
+    function closeLightbox() {
+      document.getElementById('lightbox').classList.remove('active');
+    }
+    document.getElementById('lightbox').addEventListener('click', function(e) {
+      if (e.target === this) closeLightbox();
+    });
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeLightbox();
+    });
+  </script>
+</body>
+</html>
