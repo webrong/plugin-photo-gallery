@@ -53,7 +53,8 @@
   <AlbumGroupEditingModal
     v-if="editingModal"
     :group="selectedGroup"
-    :groups="rootGroups"
+    :groups="availableParents"
+    :parent-for-child="parentForChild"
     @close="onEditingModalClose"
     @saved="onEditingModalSaved"
   />
@@ -65,6 +66,7 @@ import { VButton, VCard, VEmpty, VLoading, VPageHeader, VSpace, Dialog, Toast } 
 import { markRaw, h } from "vue";
 import AlbumGroupEditingModal from "../components/AlbumGroupEditingModal.vue";
 import GroupListItem from "../components/GroupListItem.vue";
+import { apiRequest, ApiError } from "../utils/api";
 
 const IconGallery = markRaw({
   name: "IconGallery",
@@ -94,7 +96,7 @@ const IconAddCircle = markRaw({
 
 interface AlbumGroup {
   metadata: { name: string; creationTimestamp?: string };
-  spec: { displayName: string; slug: string; description?: string; cover?: string; priority?: number; children?: string[]; hideFromList?: boolean };
+  spec: { displayName: string; slug: string; description?: string; cover?: string; priority?: number; children?: string[]; parentName?: string; hideFromList?: boolean };
   status?: { albumCount?: number; permalink?: string };
 }
 
@@ -116,18 +118,39 @@ const childNames = computed(() => {
 
 const rootGroups = computed(() => groups.value.filter(g => !childNames.value.has(g.metadata.name)));
 
+const descendantNames = computed(() => {
+  if (!selectedGroup.value) return new Set<string>();
+  const result = new Set<string>();
+  const byName = new Map(groups.value.map(g => [g.metadata.name, g]));
+  function walk(name: string) {
+    const g = byName.get(name);
+    if (!g) return;
+    (g.spec.children || []).forEach(c => {
+      if (!result.has(c)) {
+        result.add(c);
+        walk(c);
+      }
+    });
+  }
+  walk(selectedGroup.value.metadata.name);
+  return result;
+});
+
+const availableParents = computed(() => {
+  return groups.value.filter(g => {
+    if (selectedGroup.value && g.metadata.name === selectedGroup.value.metadata.name) return false;
+    if (selectedGroup.value && descendantNames.value.has(g.metadata.name)) return false;
+    return true;
+  });
+});
+
 async function fetchGroups() {
   loading.value = true;
   try {
-    const res = await fetch(`${apiBase}/albumgroups`, {
-      headers: { "Content-Type": "application/json" },
-    });
-    if (res.ok) {
-      const data = await res.json();
-      groups.value = data.items || [];
-    }
+    const data = await apiRequest<{ items: AlbumGroup[] }>(`${apiBase}/albumgroups`);
+    groups.value = data.items || [];
   } catch (e) {
-    console.error("获取分组列表失败", e);
+    Toast.error(e instanceof ApiError ? e.message : "获取分组列表失败");
   } finally {
     loading.value = false;
   }
@@ -170,11 +193,11 @@ function handleDelete(group: AlbumGroup) {
     cancelText: "取消",
     onConfirm: async () => {
       try {
-        await fetch(`${apiBase}/albumgroups/${group.metadata.name}`, { method: "DELETE" });
+        await apiRequest(`${apiBase}/albumgroups/${group.metadata.name}`, { method: "DELETE" });
         Toast.success("删除成功");
         await fetchGroups();
       } catch (e) {
-        Toast.error("删除失败");
+        Toast.error(e instanceof ApiError ? e.message : "删除失败");
       }
     },
   });

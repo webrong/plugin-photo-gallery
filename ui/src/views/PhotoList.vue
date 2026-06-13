@@ -20,18 +20,23 @@
     <VCard :body-class="['!p-0']">
       <VLoading v-if="loading" />
       <VEmpty v-else-if="photos.length === 0" title="暂无照片" message="点击「添加照片」开始上传" />
-      <div v-else class="photo-grid">
-        <div v-for="photo in photos" :key="photo.metadata.name" class="photo-card">
-          <img :src="photo.spec.thumbnail || photo.spec.url" :alt="photo.spec.title" />
-          <div class="photo-card-overlay">
-            <div class="photo-card-actions">
-              <VButton size="sm" type="secondary" @click="openEditModal(photo)">编辑</VButton>
-              <VButton size="sm" type="danger" @click="handleDelete(photo)">删除</VButton>
+      <div v-else>
+        <div class="photo-grid">
+          <div v-for="photo in photos" :key="photo.metadata.name" class="photo-card">
+            <img :src="photo.spec.thumbnail || photo.spec.url" :alt="photo.spec.title" />
+            <div class="photo-card-overlay">
+              <div class="photo-card-actions">
+                <VButton size="sm" type="secondary" @click="openEditModal(photo)">编辑</VButton>
+                <VButton size="sm" type="danger" @click="handleDelete(photo)">删除</VButton>
+              </div>
+            </div>
+            <div class="photo-card-info">
+              <span>{{ photo.spec.title || '未命名' }}</span>
             </div>
           </div>
-          <div class="photo-card-info">
-            <span>{{ photo.spec.title || '未命名' }}</span>
-          </div>
+        </div>
+        <div v-if="hasMore" class="flex justify-center py-4">
+          <VButton :loading="loadingMore" type="default" @click="loadMore">加载更多</VButton>
         </div>
       </div>
     </VCard>
@@ -130,10 +135,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, computed, watch, onMounted } from "vue";
 import { useRoute } from "vue-router";
 import { VButton, VCard, VEmpty, VLoading, VModal, VPageHeader, Dialog, Toast } from "@halo-dev/components";
 import { markRaw, h } from "vue";
+import { apiRequest, ApiError } from "../utils/api";
 
 const IconGallery = markRaw({
   name: "IconGallery",
@@ -162,9 +168,10 @@ const IconAddCircle = markRaw({
 });
 
 const route = useRoute();
-const albumName = route.params.name as string;
-const albumDisplayName = ref(albumName);
+const albumName = computed(() => route.params.name as string);
+const albumDisplayName = ref(albumName.value);
 const apiBase = "/apis/console.api.gallery.halo.run/v1alpha1";
+const PAGE_SIZE = 24;
 
 interface Photo {
   metadata: { name: string };
@@ -173,6 +180,9 @@ interface Photo {
 
 const photos = ref<Photo[]>([]);
 const loading = ref(true);
+const loadingMore = ref(false);
+const hasMore = ref(false);
+const page = ref(1);
 const showAddModal = ref(false);
 const showEditModal = ref(false);
 const adding = ref(false);
@@ -188,34 +198,52 @@ const editingPhoto = ref<Photo>(createEmptyPhoto());
 function createEmptyPhoto(): Photo {
   return {
     metadata: { name: "" },
-    spec: { title: "", description: "", url: "", thumbnail: "", albumName: albumName, priority: 0, visible: true },
+    spec: { title: "", description: "", url: "", thumbnail: "", albumName: albumName.value, priority: 0, visible: true },
   };
 }
 
 async function fetchAlbumInfo() {
   try {
-    const res = await fetch(`${apiBase}/albums/${albumName}`);
-    if (res.ok) {
-      const data = await res.json();
-      albumDisplayName.value = data.spec?.displayName || albumName;
-    }
-  } catch (_) {}
+    const data = await apiRequest<{ spec?: { displayName?: string } }>(`${apiBase}/albums/${albumName.value}`);
+    albumDisplayName.value = data.spec?.displayName || albumName.value;
+  } catch (e) {
+    // silent: just show raw name if album info fetch fails
+  }
 }
 
 async function fetchPhotos() {
   loading.value = true;
+  page.value = 1;
   try {
-    const res = await fetch(`${apiBase}/photos?albumName=${albumName}&size=100`, {
-      headers: { "Content-Type": "application/json" },
+    const data = await apiRequest<{ items: Photo[]; hasNext?: boolean }>(`${apiBase}/photos`, {
+      query: { albumName: albumName.value, page: 1, size: PAGE_SIZE },
     });
-    if (res.ok) {
-      const data = await res.json();
-      photos.value = data.items || [];
-    }
+    photos.value = data.items || [];
+    hasMore.value = !!data.hasNext;
   } catch (e) {
-    console.error("获取照片失败", e);
+    Toast.error(e instanceof ApiError ? e.message : "获取照片失败");
+    photos.value = [];
+    hasMore.value = false;
   } finally {
     loading.value = false;
+  }
+}
+
+async function loadMore() {
+  if (loadingMore.value || !hasMore.value) return;
+  loadingMore.value = true;
+  const nextPage = page.value + 1;
+  try {
+    const data = await apiRequest<{ items: Photo[]; hasNext?: boolean }>(`${apiBase}/photos`, {
+      query: { albumName: albumName.value, page: nextPage, size: PAGE_SIZE },
+    });
+    photos.value.push(...(data.items || []));
+    page.value = nextPage;
+    hasMore.value = !!data.hasNext;
+  } catch (e) {
+    Toast.error(e instanceof ApiError ? e.message : "加载更多失败");
+  } finally {
+    loadingMore.value = false;
   }
 }
 
@@ -256,23 +284,15 @@ async function handleAdd() {
       apiVersion: "gallery.halo.run/v1alpha1",
       kind: "Photo",
       metadata: { generateName: "photo-" },
-      spec: { ...newPhoto.value.spec, albumName: albumName },
+      spec: { ...newPhoto.value.spec, albumName: albumName.value },
     };
-    const res = await fetch(`${apiBase}/photos`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (res.ok) {
-      Toast.success("添加成功");
-      showAddModal.value = false;
-      newPhoto.value = createEmptyPhoto();
-      await fetchPhotos();
-    } else {
-      Toast.error("添加失败");
-    }
+    await apiRequest(`${apiBase}/photos`, { method: "POST", body });
+    Toast.success("添加成功");
+    showAddModal.value = false;
+    newPhoto.value = createEmptyPhoto();
+    await fetchPhotos();
   } catch (e) {
-    Toast.error("添加失败");
+    Toast.error(e instanceof ApiError ? e.message : "添加失败");
   } finally {
     adding.value = false;
   }
@@ -281,20 +301,15 @@ async function handleAdd() {
 async function handleUpdate() {
   saving.value = true;
   try {
-    const res = await fetch(`${apiBase}/photos/${editingPhoto.value.metadata.name}`, {
+    await apiRequest(`${apiBase}/photos/${editingPhoto.value.metadata.name}`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(editingPhoto.value),
+      body: editingPhoto.value,
     });
-    if (res.ok) {
-      Toast.success("保存成功");
-      showEditModal.value = false;
-      await fetchPhotos();
-    } else {
-      Toast.error("保存失败");
-    }
+    Toast.success("保存成功");
+    showEditModal.value = false;
+    await fetchPhotos();
   } catch (e) {
-    Toast.error("保存失败");
+    Toast.error(e instanceof ApiError ? e.message : "保存失败");
   } finally {
     saving.value = false;
   }
@@ -309,15 +324,23 @@ function handleDelete(photo: Photo) {
     cancelText: "取消",
     onConfirm: async () => {
       try {
-        await fetch(`${apiBase}/photos/${photo.metadata.name}`, { method: "DELETE" });
+        await apiRequest(`${apiBase}/photos/${photo.metadata.name}`, { method: "DELETE" });
         Toast.success("删除成功");
         await fetchPhotos();
       } catch (e) {
-        Toast.error("删除失败");
+        Toast.error(e instanceof ApiError ? e.message : "删除失败");
       }
     },
   });
 }
+
+watch(albumName, (newName, oldName) => {
+  if (newName && newName !== oldName) {
+    albumDisplayName.value = newName;
+    fetchAlbumInfo();
+    fetchPhotos();
+  }
+});
 
 onMounted(() => {
   fetchAlbumInfo();

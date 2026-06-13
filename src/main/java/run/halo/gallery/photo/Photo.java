@@ -35,11 +35,9 @@ public class Photo extends AbstractExtension {
 
         private String thumbnail;
 
-        @Schema(defaultValue = "0")
-        private Integer priority;
+        private Integer priority = 0;
 
-        @Schema(defaultValue = "true")
-        private Boolean visible;
+        private Boolean visible = true;
     }
 
     @Data

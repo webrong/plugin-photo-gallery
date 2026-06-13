@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -20,8 +24,21 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: ui/package-lock.json
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+
+      - name: Build UI
+        working-directory: ui
+        run: |
+          npm ci || npm install
+          npm run build
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
@@ -33,12 +50,19 @@ jobs:
         id: tag
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      - name: Rename JAR
+      - name: Stage JAR
         run: |
-          mv build/libs/*.jar plugin-photo-gallery-${{ steps.tag.outputs.VERSION }}.jar
+          mkdir -p staging
+          JAR=$(find build/libs -name "*.jar" ! -name "*-sources.jar" ! -name "*-javadoc.jar" | head -1)
+          if [ -z "$JAR" ]; then
+            echo "No JAR found in build/libs"
+            ls -la build/libs
+            exit 1
+          fi
+          cp "$JAR" "staging/plugin-photo-gallery-${{ steps.tag.outputs.VERSION }}.jar"
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: plugin-photo-gallery-${{ steps.tag.outputs.VERSION }}.jar
+          files: staging/plugin-photo-gallery-${{ steps.tag.outputs.VERSION }}.jar
           generate_release_notes: true

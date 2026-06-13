@@ -1,12 +1,12 @@
 package run.halo.gallery.finder;
 
-import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Sort;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import run.halo.app.extension.ListOptions;
+import run.halo.app.extension.ListResult;
 import run.halo.app.extension.PageRequestImpl;
 import run.halo.app.extension.ReactiveExtensionClient;
 import run.halo.app.extension.index.query.QueryFactory;
@@ -22,21 +22,28 @@ import run.halo.gallery.vo.PhotoVo;
 @RequiredArgsConstructor
 public class GalleryFinderImpl implements GalleryFinder {
 
+    private static final Sort ALBUM_SORT = Sort.by(
+        Sort.Order.asc("spec.priority"),
+        Sort.Order.desc("metadata.creationTimestamp"));
+
     private final ReactiveExtensionClient client;
 
     @Override
     public Flux<AlbumVo> listAlbums() {
-        return client.listAll(Album.class,
-                ListOptions.builder()
-                    .fieldQuery(QueryFactory.equal("spec.visible", "true"))
-                    .build(),
-                Sort.by(Sort.Order.asc("spec.priority"),
-                    Sort.Order.desc("metadata.creationTimestamp"))
-            )
+        return client.listAll(Album.class, visibleAlbumQuery(), ALBUM_SORT)
             .flatMap(album -> countPhotos(album.getMetadata().getName())
-                .map(count -> AlbumVo.from(album, count))
-                .defaultIfEmpty(AlbumVo.from(album, 0))
-            );
+                .map(count -> AlbumVo.from(album, count)));
+    }
+
+    @Override
+    public Mono<ListResult<AlbumVo>> listAlbumsPaged(Integer page, Integer size) {
+        int p = page == null || page < 1 ? 1 : page;
+        int s = size == null || size < 1 ? 12 : size;
+        return client.listBy(Album.class, visibleAlbumQuery(), PageRequestImpl.of(p, s, ALBUM_SORT))
+            .flatMap(result -> enrichAlbumsWithPhotoCount(result.getItems())
+                .collectList()
+                .map(vos -> new ListResult<>(result.getPage(), result.getSize(),
+                    result.getTotal(), vos)));
     }
 
     @Override
@@ -44,62 +51,38 @@ public class GalleryFinderImpl implements GalleryFinder {
         return client.listAll(Album.class,
                 ListOptions.builder()
                     .fieldQuery(QueryFactory.equal("spec.slug", slug))
+                    .andQuery(QueryFactory.equal("spec.visible", "true"))
                     .build(),
-                Sort.unsorted()
-            )
+                Sort.unsorted())
             .next()
             .flatMap(album -> countPhotos(album.getMetadata().getName())
-                .map(count -> AlbumVo.from(album, count))
-                .defaultIfEmpty(AlbumVo.from(album, 0))
-            );
+                .map(count -> AlbumVo.from(album, count)));
     }
 
     @Override
-    public Mono<run.halo.app.extension.ListResult<PhotoVo>> listPhotos(String albumSlug,
-        Integer page, Integer size) {
+    public Mono<ListResult<PhotoVo>> listPhotos(String albumSlug, Integer page, Integer size) {
         return getAlbum(albumSlug)
             .flatMap(albumVo -> {
                 var options = ListOptions.builder()
                     .fieldQuery(QueryFactory.equal("spec.albumName", albumVo.getMetadata().getName()))
                     .andQuery(QueryFactory.equal("spec.visible", "true"))
                     .build();
-                var sort = Sort.by(Sort.Order.asc("spec.priority"),
-                    Sort.Order.desc("metadata.creationTimestamp"));
-                return client.listBy(Photo.class, options,
-                    PageRequestImpl.of(page != null ? page : 1,
-                        size != null ? size : 20, sort));
+                int p = page == null || page < 1 ? 1 : page;
+                int s = size == null || size < 1 ? 20 : size;
+                return client.listBy(Photo.class, options, PageRequestImpl.of(p, s, ALBUM_SORT));
             })
-            .map(listResult -> {
-                List<PhotoVo> vos = new ArrayList<>();
-                for (Photo photo : listResult.getItems()) {
-                    vos.add(PhotoVo.from(photo));
-                }
-                return new run.halo.app.extension.ListResult<>(
-                    listResult.getPage(), listResult.getSize(),
-                    listResult.getTotal(), vos);
-            });
+            .map(this::toPhotoVoListResult);
     }
 
     @Override
-    public Mono<run.halo.app.extension.ListResult<PhotoVo>> listAllPhotos(Integer page,
-        Integer size) {
+    public Mono<ListResult<PhotoVo>> listAllPhotos(Integer page, Integer size) {
         var options = ListOptions.builder()
             .fieldQuery(QueryFactory.equal("spec.visible", "true"))
             .build();
-        var sort = Sort.by(Sort.Order.asc("spec.priority"),
-            Sort.Order.desc("metadata.creationTimestamp"));
-        return client.listBy(Photo.class, options,
-                PageRequestImpl.of(page != null ? page : 1,
-                    size != null ? size : 20, sort))
-            .map(listResult -> {
-                List<PhotoVo> vos = new ArrayList<>();
-                for (Photo photo : listResult.getItems()) {
-                    vos.add(PhotoVo.from(photo));
-                }
-                return new run.halo.app.extension.ListResult<>(
-                    listResult.getPage(), listResult.getSize(),
-                    listResult.getTotal(), vos);
-            });
+        int p = page == null || page < 1 ? 1 : page;
+        int s = size == null || size < 1 ? 20 : size;
+        return client.listBy(Photo.class, options, PageRequestImpl.of(p, s, ALBUM_SORT))
+            .map(this::toPhotoVoListResult);
     }
 
     @Override
@@ -108,12 +91,10 @@ public class GalleryFinderImpl implements GalleryFinder {
                 ListOptions.builder()
                     .fieldQuery(QueryFactory.notEqual("spec.hideFromList", "true"))
                     .build(),
-                Sort.by(Sort.Order.asc("spec.priority"))
-            )
+                Sort.by(Sort.Order.asc("spec.priority"),
+                    Sort.Order.desc("metadata.creationTimestamp")))
             .flatMap(group -> countAlbumsInGroup(group.getMetadata().getName())
-                .map(count -> AlbumGroupVo.from(group, count))
-                .defaultIfEmpty(AlbumGroupVo.from(group, 0))
-            );
+                .map(count -> AlbumGroupVo.from(group, count)));
     }
 
     @Override
@@ -121,14 +102,12 @@ public class GalleryFinderImpl implements GalleryFinder {
         return client.listAll(AlbumGroup.class,
                 ListOptions.builder()
                     .fieldQuery(QueryFactory.equal("spec.slug", slug))
+                    .andQuery(QueryFactory.notEqual("spec.hideFromList", "true"))
                     .build(),
-                Sort.unsorted()
-            )
+                Sort.unsorted())
             .next()
             .flatMap(group -> countAlbumsInGroup(group.getMetadata().getName())
-                .map(count -> AlbumGroupVo.from(group, count))
-                .defaultIfEmpty(AlbumGroupVo.from(group, 0))
-            );
+                .map(count -> AlbumGroupVo.from(group, count)));
     }
 
     @Override
@@ -137,14 +116,26 @@ public class GalleryFinderImpl implements GalleryFinder {
             .fieldQuery(QueryFactory.equal("spec.groupName", groupName))
             .andQuery(QueryFactory.equal("spec.visible", "true"))
             .build();
-        return client.listAll(Album.class, options,
-                Sort.by(Sort.Order.asc("spec.priority"),
-                    Sort.Order.desc("metadata.creationTimestamp"))
-            )
+        return client.listAll(Album.class, options, ALBUM_SORT)
             .flatMap(album -> countPhotos(album.getMetadata().getName())
-                .map(count -> AlbumVo.from(album, count))
-                .defaultIfEmpty(AlbumVo.from(album, 0))
-            );
+                .map(count -> AlbumVo.from(album, count)));
+    }
+
+    private Flux<AlbumVo> enrichAlbumsWithPhotoCount(List<Album> albums) {
+        return Flux.fromIterable(albums)
+            .flatMap(album -> countPhotos(album.getMetadata().getName())
+                .map(count -> AlbumVo.from(album, count)));
+    }
+
+    private ListResult<PhotoVo> toPhotoVoListResult(ListResult<Photo> result) {
+        List<PhotoVo> vos = result.getItems().stream().map(PhotoVo::from).toList();
+        return new ListResult<>(result.getPage(), result.getSize(), result.getTotal(), vos);
+    }
+
+    private static ListOptions visibleAlbumQuery() {
+        return ListOptions.builder()
+            .fieldQuery(QueryFactory.equal("spec.visible", "true"))
+            .build();
     }
 
     private Mono<Integer> countPhotos(String albumName) {

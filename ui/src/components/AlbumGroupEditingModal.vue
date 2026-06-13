@@ -5,7 +5,7 @@
         <span class="text-base font-medium text-gray-900">基本信息</span>
       </div>
       <div class="space-y-4 md:col-span-3">
-        <div v-if="!isEdit && groups.length > 0">
+        <div v-if="groups.length > 0">
           <label class="form-label">上级分组</label>
           <select v-model="form.spec.parentName" class="form-input">
             <option value="">无（顶级分组）</option>
@@ -13,6 +13,9 @@
               {{ g.spec.displayName }}
             </option>
           </select>
+          <p v-if="parentForChild" class="text-xs text-gray-400 mt-1">
+            默认选中「{{ parentForChild.spec.displayName }}」作为上级分组
+          </p>
         </div>
 
         <div>
@@ -83,6 +86,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { VButton, VModal, VSpace, Toast } from "@halo-dev/components";
+import { apiRequest, ApiError } from "../utils/api";
 
 interface AlbumGroup {
   metadata: { name: string; generateName?: string };
@@ -91,9 +95,14 @@ interface AlbumGroup {
   kind?: string;
 }
 
-const props = withDefaults(defineProps<{ group?: AlbumGroup; groups?: AlbumGroup[] }>(), {
+const props = withDefaults(defineProps<{
+  group?: AlbumGroup;
+  groups?: AlbumGroup[];
+  parentForChild?: AlbumGroup;
+}>(), {
   group: undefined,
   groups: () => [],
+  parentForChild: undefined,
 });
 const emit = defineEmits<{ (e: "close"): void; (e: "saved"): void }>();
 
@@ -109,7 +118,16 @@ function createForm(): any {
     apiVersion: "gallery.halo.run/v1alpha1",
     kind: "AlbumGroup",
     metadata: { name: "", generateName: "albumgroup-" },
-    spec: { displayName: "", slug: "", description: "", cover: "", priority: 0, children: [], parentName: "", hideFromList: false },
+    spec: {
+      displayName: "",
+      slug: "",
+      description: "",
+      cover: "",
+      priority: 0,
+      children: [],
+      parentName: props.parentForChild?.metadata.name || "",
+      hideFromList: false,
+    },
   };
 }
 
@@ -141,49 +159,17 @@ async function handleSave(keepAdding = false) {
   saving.value = true;
   try {
     if (isEdit.value) {
-      // Update existing group
-      const res = await fetch(`${apiBase}/albumgroups/${props.group!.metadata.name}`, {
+      await apiRequest(`${apiBase}/albumgroups/${props.group!.metadata.name}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form.value, metadata: props.group!.metadata }),
+        body: { ...form.value, metadata: props.group!.metadata },
       });
-      if (!res.ok) {
-        Toast.error("保存失败");
-        saving.value = false;
-        return;
-      }
       Toast.success("保存成功");
     } else {
-      // Create new group
-      const res = await fetch(`${apiBase}/albumgroups`, {
+      // Backend handles parent/children maintenance atomically via spec.parentName.
+      await apiRequest(`${apiBase}/albumgroups`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form.value),
+        body: form.value,
       });
-      if (!res.ok) {
-        Toast.error("创建失败");
-        saving.value = false;
-        return;
-      }
-      const created = await res.json();
-
-      // If parent is selected, add to parent's children
-      if (form.value.spec.parentName) {
-        const parentRes = await fetch(`${apiBase}/albumgroups/${form.value.spec.parentName}`);
-        if (parentRes.ok) {
-          const parent = await parentRes.json();
-          const children = parent.spec.children || [];
-          if (!children.includes(created.metadata.name)) {
-            children.push(created.metadata.name);
-            parent.spec.children = children;
-            await fetch(`${apiBase}/albumgroups/${parent.metadata.name}`, {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(parent),
-            });
-          }
-        }
-      }
       Toast.success("创建成功");
     }
 
@@ -195,7 +181,7 @@ async function handleSave(keepAdding = false) {
       modal.value?.close();
     }
   } catch (e) {
-    Toast.error("操作失败");
+    Toast.error(e instanceof ApiError ? e.message : "操作失败");
   } finally {
     saving.value = false;
   }

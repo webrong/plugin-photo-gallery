@@ -26,7 +26,16 @@ Halo 相册管理插件，支持创建相册、管理照片，前台展示相册
 - `gallery.html` — 相册列表页
 - `gallery_detail.html` — 相册详情页
 
-插件提供 `galleryFinder` 供主题模板调用，获取相册和照片数据。
+插件提供 `photoGalleryFinder` 供主题模板调用，方法包括：
+
+- `listAlbums()` — 全部可见相册（含照片数）
+- `listAlbumsPaged(page, size)` — 分页查询相册
+- `getAlbum(slug)` — 根据 slug 获取相册详情
+- `listPhotos(albumSlug, page, size)` — 分页查询指定相册的照片
+- `listAllPhotos(page, size)` — 分页查询所有可见照片
+- `listAlbumGroups()` — 可见相册分组列表
+- `getAlbumGroup(slug)` — 根据 slug 获取分组
+- `listAlbumsByGroup(groupName)` — 查询分组下的相册
 
 ## 开发
 

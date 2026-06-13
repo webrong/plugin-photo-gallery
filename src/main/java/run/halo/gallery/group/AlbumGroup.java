@@ -36,13 +36,13 @@ public class AlbumGroup extends AbstractExtension {
 
         private String cover;
 
-        @Schema(defaultValue = "0")
-        private Integer priority;
+        private Integer priority = 0;
 
         private @Nullable List<String> children;
 
-        @Schema(defaultValue = "false")
         private boolean hideFromList;
+
+        private String parentName;
     }
 
     @Data

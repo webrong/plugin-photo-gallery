@@ -90,6 +90,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { VButton, VModal, VSpace, Toast } from "@halo-dev/components";
+import { apiRequest, ApiError } from "../utils/api";
 
 interface Album {
   metadata: { name: string; generateName?: string };
@@ -123,12 +124,11 @@ const form = ref<Album>(createForm());
 const albumGroups = ref<any[]>([]);
 async function fetchGroups() {
   try {
-    const res = await fetch(`${apiBase}/albumgroups`);
-    if (res.ok) {
-      const data = await res.json();
-      albumGroups.value = data.items || [];
-    }
-  } catch (_) {}
+    const data = await apiRequest<{ items: any[] }>(`${apiBase}/albumgroups`);
+    albumGroups.value = data.items || [];
+  } catch (_) {
+    // silent: group dropdown just won't populate
+  }
 }
 
 function slugify(text: string): string {
@@ -160,26 +160,17 @@ async function handleSave(keepAdding = false) {
       ? `${apiBase}/albums/${props.album!.metadata.name}`
       : `${apiBase}/albums`;
     const method = isEdit.value ? "PUT" : "POST";
-    const res = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form.value),
-    });
-    if (res.ok) {
-      Toast.success(isEdit.value ? "保存成功" : "创建成功");
-      emit("saved");
-      if (keepAdding) {
-        form.value = createForm();
-        slugManuallyEdited = false;
-      } else {
-        modal.value?.close();
-      }
+    await apiRequest(url, { method, body: form.value });
+    Toast.success(isEdit.value ? "保存成功" : "创建成功");
+    emit("saved");
+    if (keepAdding) {
+      form.value = createForm();
+      slugManuallyEdited = false;
     } else {
-      const err = await res.text();
-      Toast.error(`操作失败: ${err}`);
+      modal.value?.close();
     }
   } catch (e) {
-    Toast.error("操作失败");
+    Toast.error(e instanceof ApiError ? e.message : "操作失败");
   } finally {
     saving.value = false;
   }

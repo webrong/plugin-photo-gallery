@@ -11,6 +11,8 @@ public interface GalleryFinder {
 
     Flux<AlbumVo> listAlbums();
 
+    Mono<ListResult<AlbumVo>> listAlbumsPaged(Integer page, Integer size);
+
     Mono<AlbumVo> getAlbum(String slug);
 
     Mono<ListResult<PhotoVo>> listPhotos(String albumSlug, Integer page, Integer size);

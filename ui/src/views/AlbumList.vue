@@ -79,6 +79,7 @@ import { ref, onMounted } from "vue";
 import { VButton, VCard, VEmpty, VLoading, VPageHeader, VSpace, VTag, Dialog, Toast } from "@halo-dev/components";
 import { markRaw, h } from "vue";
 import AlbumEditingModal from "../components/AlbumEditingModal.vue";
+import { apiRequest, ApiError } from "../utils/api";
 
 const IconGallery = markRaw({
   name: "IconGallery",
@@ -122,15 +123,10 @@ const apiBase = "/apis/console.api.gallery.halo.run/v1alpha1";
 async function fetchAlbums() {
   loading.value = true;
   try {
-    const res = await fetch(`${apiBase}/albums`, {
-      headers: { "Content-Type": "application/json" },
-    });
-    if (res.ok) {
-      const data = await res.json();
-      albums.value = data.items || [];
-    }
+    const data = await apiRequest<{ items: Album[] }>(`${apiBase}/albums`);
+    albums.value = data.items || [];
   } catch (e) {
-    console.error("获取相册列表失败", e);
+    Toast.error(e instanceof ApiError ? e.message : "获取相册列表失败");
   } finally {
     loading.value = false;
   }
@@ -164,11 +160,11 @@ function handleDelete(album: Album) {
     cancelText: "取消",
     onConfirm: async () => {
       try {
-        await fetch(`${apiBase}/albums/${album.metadata.name}`, { method: "DELETE" });
+        await apiRequest(`${apiBase}/albums/${album.metadata.name}`, { method: "DELETE" });
         Toast.success("删除成功");
         await fetchAlbums();
       } catch (e) {
-        Toast.error("删除失败");
+        Toast.error(e instanceof ApiError ? e.message : "删除失败");
       }
     },
   });
