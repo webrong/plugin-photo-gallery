@@ -78,6 +78,11 @@ v1.1.0 起采用 Reconciler 架构：
 
 ## 更新日志
 
+### v1.1.1
+
+- hotfix：回退 v1.0.2 误改的 roleTemplate apiVersion（`rbac.authorization.halo.run/v1alpha1` → `v1alpha1`），修复插件停止时 SchemeNotFoundException
+- Halo 核心 Role 的 GVK group 是空字符串，apiVersion 应为 `v1alpha1`（无 group 前缀），与核心 role-template-authenticated.yaml 等保持一致
+
 ### v1.1.0
 
 - 架构重构：引入 Reconciler 机制（AlbumReconciler + AlbumGroupReconciler）
@@ -92,7 +97,7 @@ v1.1.0 起采用 Reconciler 架构：
 - 安全修复：Album / AlbumGroup 的 cover 字段统一调用 UrlSanitizer 净化
 - 安全修复：UrlSanitizer 禁止 data:image/svg（防存储型 XSS）
 - plugin.yaml 补充 module 字段
-- roleTemplate.yaml 补全 apiVersion group 前缀
+- roleTemplate.yaml 保持 apiVersion: v1alpha1（与 Halo 核心 Role GVK group="" 一致）
 - 性能优化：N+1 查询并发限制、getAlbum 改用 listBy
 - 代码质量：删除 GalleryRouter 死代码
 
