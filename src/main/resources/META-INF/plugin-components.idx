@@ -4,7 +4,10 @@ run.halo.gallery.finder.GalleryFinderImpl
 run.halo.gallery.endpoint.AlbumEndpoint
 run.halo.gallery.endpoint.PhotoEndpoint
 run.halo.gallery.endpoint.AlbumGroupEndpoint
+run.halo.gallery.endpoint.EndpointUtils
 run.halo.gallery.endpoint.publicapi.AlbumPublicEndpoint
 run.halo.gallery.endpoint.publicapi.PhotoPublicEndpoint
 run.halo.gallery.endpoint.publicapi.AlbumGroupPublicEndpoint
 run.halo.gallery.router.GalleryRouter
+run.halo.gallery.reconciler.AlbumReconciler
+run.halo.gallery.reconciler.AlbumGroupReconciler

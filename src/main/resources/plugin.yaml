@@ -4,7 +4,7 @@ metadata:
   name: plugin-photo-gallery
 spec:
   enabled: true
-  version: "1.1.1"
+  version: "1.1.2"
 
   requires: ">=2.20.0"
   author:
