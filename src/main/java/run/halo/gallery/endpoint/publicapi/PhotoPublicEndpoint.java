@@ -18,6 +18,7 @@ import run.halo.app.extension.PageRequestImpl;
 import run.halo.app.extension.ReactiveExtensionClient;
 import run.halo.app.extension.index.query.QueryFactory;
 import run.halo.gallery.album.Album;
+import run.halo.gallery.endpoint.EndpointUtils;
 import run.halo.gallery.photo.Photo;
 import run.halo.gallery.vo.PhotoVo;
 
@@ -50,8 +51,8 @@ public class PhotoPublicEndpoint implements CustomEndpoint {
 
     private Mono<ServerResponse> listPhotos(ServerRequest request) {
         var albumName = request.queryParam("albumName").orElse(null);
-        var page = positiveInt(request.queryParam("page").orElse(null), 1);
-        var size = capSize(positiveInt(request.queryParam("size").orElse(null), DEFAULT_SIZE));
+        var page = EndpointUtils.positiveInt(request.queryParam("page").orElse(null), 1);
+        var size = EndpointUtils.capSize(EndpointUtils.positiveInt(request.queryParam("size").orElse(null), DEFAULT_SIZE), MAX_SIZE);
 
         var builder = ListOptions.builder()
             .fieldQuery(QueryFactory.equal("spec.visible", "true"));
@@ -97,20 +98,4 @@ public class PhotoPublicEndpoint implements CustomEndpoint {
                 HttpStatus.NOT_FOUND, "照片不存在或不可见")));
     }
 
-    private static int positiveInt(String value, int defaultValue) {
-        if (value == null || value.isBlank()) {
-            return defaultValue;
-        }
-        try {
-            int v = Integer.parseInt(value);
-            return v > 0 ? v : defaultValue;
-        } catch (NumberFormatException e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                "page/size 必须是正整数");
-        }
-    }
-
-    private static int capSize(int size) {
-        return Math.min(size, MAX_SIZE);
-    }
 }

@@ -9,11 +9,9 @@ import java.util.Optional;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.OptimisticLockingFailureException;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
-import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.util.retry.Retry;
@@ -70,7 +68,7 @@ public class AlbumGroupEndpoint implements CustomEndpoint {
     private Mono<ServerResponse> getGroup(ServerRequest request) {
         var name = request.pathVariable("name");
         return client.fetch(AlbumGroup.class, name)
-            .switchIfEmpty(Mono.error(notFound("分组不存在")))
+            .switchIfEmpty(Mono.error(EndpointUtils.notFound("分组不存在")))
             .flatMap(group -> countAlbumsInGroup(name)
                 .map(count -> {
                     if (group.getStatus() == null) {
@@ -84,7 +82,7 @@ public class AlbumGroupEndpoint implements CustomEndpoint {
 
     private Mono<ServerResponse> createGroup(ServerRequest request) {
         return request.bodyToMono(AlbumGroup.class)
-            .switchIfEmpty(Mono.error(badRequest("请求体不能为空")))
+            .switchIfEmpty(Mono.error(EndpointUtils.badRequest("请求体不能为空")))
             .flatMap(group -> validateGroupSpec(group)
                 .then(validateParentChain(null, group.getSpec().getParentName()))
                 .then(client.create(applyGroupDefaults(group)))
@@ -96,13 +94,13 @@ public class AlbumGroupEndpoint implements CustomEndpoint {
     private Mono<ServerResponse> updateGroup(ServerRequest request) {
         var name = request.pathVariable("name");
         return request.bodyToMono(AlbumGroup.class)
-            .switchIfEmpty(Mono.error(badRequest("请求体不能为空")))
+            .switchIfEmpty(Mono.error(EndpointUtils.badRequest("请求体不能为空")))
             .flatMap(group -> client.fetch(AlbumGroup.class, name)
-                .switchIfEmpty(Mono.error(notFound("分组不存在")))
+                .switchIfEmpty(Mono.error(EndpointUtils.notFound("分组不存在")))
                 .flatMap(existing -> {
                     var spec = group.getSpec();
                     if (spec == null) {
-                        return Mono.error(badRequest("spec 不能为空"));
+                        return Mono.error(EndpointUtils.badRequest("spec 不能为空"));
                     }
                     String oldParentName = existing.getSpec().getParentName();
                     String newParentName = spec.getParentName();
@@ -126,7 +124,7 @@ public class AlbumGroupEndpoint implements CustomEndpoint {
     private Mono<ServerResponse> deleteGroup(ServerRequest request) {
         var name = request.pathVariable("name");
         return client.fetch(AlbumGroup.class, name)
-            .switchIfEmpty(Mono.error(notFound("分组不存在")))
+            .switchIfEmpty(Mono.error(EndpointUtils.notFound("分组不存在")))
             .flatMap(group -> removeFromParent(group)
                 .then(client.delete(group))
                 .then(ServerResponse.ok().build()));
@@ -214,7 +212,7 @@ public class AlbumGroupEndpoint implements CustomEndpoint {
             return Mono.empty();
         }
         if (name != null && parentName.equals(name)) {
-            return Mono.error(badRequest("不能将自身设为父分组"));
+            return Mono.error(EndpointUtils.badRequest("不能将自身设为父分组"));
         }
         Set<String> visited = new HashSet<>();
         if (name != null) {
@@ -225,7 +223,7 @@ public class AlbumGroupEndpoint implements CustomEndpoint {
 
     private Mono<Void> walkParents(String currentName, Set<String> visited) {
         if (!visited.add(currentName)) {
-            return Mono.error(badRequest("父分组链存在循环引用"));
+            return Mono.error(EndpointUtils.badRequest("父分组链存在循环引用"));
         }
         return client.fetch(AlbumGroup.class, currentName)
             .flatMap(group -> {
@@ -243,13 +241,13 @@ public class AlbumGroupEndpoint implements CustomEndpoint {
     private static Mono<Void> validateGroupSpec(AlbumGroup group) {
         var spec = group.getSpec();
         if (spec == null) {
-            return Mono.error(badRequest("spec 不能为空"));
+            return Mono.error(EndpointUtils.badRequest("spec 不能为空"));
         }
         if (spec.getDisplayName() == null || spec.getDisplayName().isBlank()) {
-            return Mono.error(badRequest("displayName 不能为空"));
+            return Mono.error(EndpointUtils.badRequest("displayName 不能为空"));
         }
         if (spec.getSlug() == null || spec.getSlug().isBlank()) {
-            return Mono.error(badRequest("slug 不能为空"));
+            return Mono.error(EndpointUtils.badRequest("slug 不能为空"));
         }
         return Mono.empty();
     }
@@ -266,11 +264,4 @@ public class AlbumGroupEndpoint implements CustomEndpoint {
         return group;
     }
 
-    private static ResponseStatusException notFound(String reason) {
-        return new ResponseStatusException(HttpStatus.NOT_FOUND, reason);
-    }
-
-    private static ResponseStatusException badRequest(String reason) {
-        return new ResponseStatusException(HttpStatus.BAD_REQUEST, reason);
-    }
 }

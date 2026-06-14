@@ -42,6 +42,5 @@ public class Photo extends AbstractExtension {
 
     @Data
     public static class PhotoStatus {
-        private String permalink;
     }
 }

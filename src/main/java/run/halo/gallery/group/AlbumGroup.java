@@ -47,7 +47,6 @@ public class AlbumGroup extends AbstractExtension {
 
     @Data
     public static class AlbumGroupStatus {
-        private String permalink;
-        private Integer albumCount;
+            private Integer albumCount;
     }
 }

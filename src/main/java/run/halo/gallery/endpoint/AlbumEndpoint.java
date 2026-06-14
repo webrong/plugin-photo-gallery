@@ -4,11 +4,9 @@ import static org.springdoc.webflux.core.fn.SpringdocRouteBuilder.route;
 
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
-import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import run.halo.app.core.extension.endpoint.CustomEndpoint;
@@ -65,7 +63,7 @@ public class AlbumEndpoint implements CustomEndpoint {
     private Mono<ServerResponse> getAlbum(ServerRequest request) {
         var name = request.pathVariable("name");
         return client.fetch(Album.class, name)
-            .switchIfEmpty(Mono.error(notFound("相册不存在")))
+            .switchIfEmpty(Mono.error(EndpointUtils.notFound("相册不存在")))
             .flatMap(this::attachPhotoCount)
             .flatMap(album -> ServerResponse.ok().bodyValue(album));
     }
@@ -90,7 +88,7 @@ public class AlbumEndpoint implements CustomEndpoint {
 
     private Mono<ServerResponse> createAlbum(ServerRequest request) {
         return request.bodyToMono(Album.class)
-            .switchIfEmpty(Mono.error(badRequest("请求体不能为空")))
+            .switchIfEmpty(Mono.error(EndpointUtils.badRequest("请求体不能为空")))
             .flatMap(album -> validateAlbumSpec(album)
                 .then(client.create(applyDefaults(album)))
                 .flatMap(saved -> ServerResponse.ok().bodyValue(saved)));
@@ -99,13 +97,13 @@ public class AlbumEndpoint implements CustomEndpoint {
     private Mono<ServerResponse> updateAlbum(ServerRequest request) {
         var name = request.pathVariable("name");
         return request.bodyToMono(Album.class)
-            .switchIfEmpty(Mono.error(badRequest("请求体不能为空")))
+            .switchIfEmpty(Mono.error(EndpointUtils.badRequest("请求体不能为空")))
             .flatMap(album -> client.fetch(Album.class, name)
-                .switchIfEmpty(Mono.error(notFound("相册不存在")))
+                .switchIfEmpty(Mono.error(EndpointUtils.notFound("相册不存在")))
                 .flatMap(existing -> {
                     var spec = album.getSpec();
                     if (spec == null) {
-                        return Mono.error(badRequest("spec 不能为空"));
+                        return Mono.error(EndpointUtils.badRequest("spec 不能为空"));
                     }
                     if (spec.getSlug() == null || spec.getSlug().isBlank()) {
                         spec.setSlug(existing.getSpec().getSlug());
@@ -122,30 +120,21 @@ public class AlbumEndpoint implements CustomEndpoint {
     private Mono<ServerResponse> deleteAlbum(ServerRequest request) {
         var name = request.pathVariable("name");
         return client.fetch(Album.class, name)
-            .switchIfEmpty(Mono.error(notFound("相册不存在")))
-            .then(deletePhotosOfAlbum(name))
-            .then(client.fetch(Album.class, name).flatMap(client::delete))
+            .switchIfEmpty(Mono.error(EndpointUtils.notFound("相册不存在")))
+            .flatMap(client::delete)
             .then(ServerResponse.ok().build());
-    }
-
-    private Mono<Void> deletePhotosOfAlbum(String albumName) {
-        var options = ListOptions.builder()
-            .fieldQuery(QueryFactory.equal("spec.albumName", albumName))
-            .build();
-        return client.listAll(Photo.class, options, org.springframework.data.domain.Sort.unsorted())
-            .flatMap(client::delete, 16)
-            .then();
+        // Photos are cascade-deleted by AlbumReconciler via finalizer
     }
 
     private static Mono<Void> validateAlbumSpec(Album album) {
         if (album.getSpec() == null) {
-            return Mono.error(badRequest("spec 不能为空"));
+            return Mono.error(EndpointUtils.badRequest("spec 不能为空"));
         }
         if (album.getSpec().getDisplayName() == null || album.getSpec().getDisplayName().isBlank()) {
-            return Mono.error(badRequest("displayName 不能为空"));
+            return Mono.error(EndpointUtils.badRequest("displayName 不能为空"));
         }
         if (album.getSpec().getSlug() == null || album.getSpec().getSlug().isBlank()) {
-            return Mono.error(badRequest("slug 不能为空"));
+            return Mono.error(EndpointUtils.badRequest("slug 不能为空"));
         }
         return Mono.empty();
     }
@@ -162,11 +151,4 @@ public class AlbumEndpoint implements CustomEndpoint {
         return album;
     }
 
-    private static ResponseStatusException notFound(String reason) {
-        return new ResponseStatusException(HttpStatus.NOT_FOUND, reason);
-    }
-
-    private static ResponseStatusException badRequest(String reason) {
-        return new ResponseStatusException(HttpStatus.BAD_REQUEST, reason);
-    }
 }
