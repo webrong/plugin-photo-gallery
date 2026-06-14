@@ -29,8 +29,14 @@ public final class UrlSanitizer {
         if (!ALLOWED_SCHEMES.contains(scheme)) {
             return "";
         }
-        if ("data".equals(scheme) && !lower.startsWith("data:image/")) {
-            return "";
+        if ("data".equals(scheme)) {
+            // Only allow raster image data URIs; SVG can execute JS
+            if (!lower.startsWith("data:image/")) {
+                return "";
+            }
+            if (lower.startsWith("data:image/svg")) {
+                return "";
+            }
         }
         return trimmed;
     }

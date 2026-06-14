@@ -1,4 +1,4 @@
-apiVersion: v1alpha1
+apiVersion: rbac.authorization.halo.run/v1alpha1
 kind: Role
 metadata:
   name: role-template-gallery-view
@@ -13,7 +13,7 @@ rules:
     resources: [ "albums", "photos", "albumgroups" ]
     verbs: [ "get", "list" ]
 ---
-apiVersion: v1alpha1
+apiVersion: rbac.authorization.halo.run/v1alpha1
 kind: Role
 metadata:
   name: role-template-gallery-manage
@@ -29,7 +29,7 @@ rules:
     resources: [ "albums", "photos", "albumgroups" ]
     verbs: [ "create", "patch", "update", "delete", "deletecollection" ]
 ---
-apiVersion: v1alpha1
+apiVersion: rbac.authorization.halo.run/v1alpha1
 kind: Role
 metadata:
   name: role-template-gallery-anonymous

@@ -19,6 +19,7 @@ import run.halo.app.extension.ReactiveExtensionClient;
 import run.halo.app.extension.router.SortableRequest;
 import run.halo.app.extension.index.query.QueryFactory;
 import run.halo.gallery.album.Album;
+import run.halo.gallery.util.UrlSanitizer;
 import run.halo.gallery.photo.Photo;
 
 @Component
@@ -53,7 +54,7 @@ public class AlbumEndpoint implements CustomEndpoint {
         var sortReq = new SortableRequest(request.exchange());
         return client.listBy(Album.class, sortReq.toListOptions(), sortReq.toPageRequest())
             .flatMap(listResult -> Flux.fromIterable(listResult.getItems())
-                .flatMap(this::attachPhotoCount)
+                .flatMap(this::attachPhotoCount, 8)
                 .collectList()
                 .map(enriched -> new ListResult<>(
                     listResult.getPage(), listResult.getSize(),
@@ -157,6 +158,7 @@ public class AlbumEndpoint implements CustomEndpoint {
         if (spec.getVisible() == null) {
             spec.setVisible(true);
         }
+        spec.setCover(UrlSanitizer.sanitize(spec.getCover()));
         return album;
     }
 

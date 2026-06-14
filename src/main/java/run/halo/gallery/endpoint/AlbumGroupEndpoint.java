@@ -26,6 +26,7 @@ import run.halo.app.extension.index.query.QueryFactory;
 import run.halo.app.extension.router.SortableRequest;
 import run.halo.gallery.album.Album;
 import run.halo.gallery.group.AlbumGroup;
+import run.halo.gallery.util.UrlSanitizer;
 
 @Component
 @RequiredArgsConstructor
@@ -140,7 +141,7 @@ public class AlbumGroupEndpoint implements CustomEndpoint {
                     }
                     group.getStatus().setAlbumCount(count);
                     return group;
-                }));
+                }), 8);
     }
 
     private Mono<Integer> countAlbumsInGroup(String groupName) {
@@ -261,6 +262,7 @@ public class AlbumGroupEndpoint implements CustomEndpoint {
         if (spec.getChildren() == null) {
             spec.setChildren(List.of());
         }
+        spec.setCover(UrlSanitizer.sanitize(spec.getCover()));
         return group;
     }
 

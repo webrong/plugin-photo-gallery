@@ -161,15 +161,7 @@ public class GalleryRouter {
         }
     }
 
-    private static int pathVariableAsInt(ServerRequest request, String name, int defaultValue) {
-        try {
-            return positiveInt(request.pathVariable(name), defaultValue);
-        } catch (Exception e) {
-            return defaultValue;
-        }
-    }
-
-    private static Integer pathVariableOrNull(ServerRequest request, String name) {
+private static Integer pathVariableOrNull(ServerRequest request, String name) {
         try {
             return Integer.parseInt(request.pathVariable(name));
         } catch (Exception e) {

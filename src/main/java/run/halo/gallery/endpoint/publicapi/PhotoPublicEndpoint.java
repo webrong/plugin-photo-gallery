@@ -17,6 +17,7 @@ import run.halo.app.extension.ListResult;
 import run.halo.app.extension.PageRequestImpl;
 import run.halo.app.extension.ReactiveExtensionClient;
 import run.halo.app.extension.index.query.QueryFactory;
+import run.halo.gallery.album.Album;
 import run.halo.gallery.photo.Photo;
 import run.halo.gallery.vo.PhotoVo;
 
@@ -59,7 +60,20 @@ public class PhotoPublicEndpoint implements CustomEndpoint {
         }
         var options = builder.build();
 
-        return client.listBy(Photo.class, options, PageRequestImpl.of(page, size))
+        // Validate album visibility before returning photos
+        Mono<Boolean> albumVisible = (albumName != null && !albumName.isBlank())
+            ? client.fetch(Album.class, albumName)
+                .map(a -> Boolean.TRUE.equals(a.getSpec().getVisible()))
+                .defaultIfEmpty(false)
+            : Mono.just(true);
+
+        return albumVisible.flatMap(visible -> {
+            if (!visible) {
+                return Mono.<ListResult<Photo>>error(new ResponseStatusException(
+                    HttpStatus.NOT_FOUND, "相册不存在或不可见"));
+            }
+            return client.listBy(Photo.class, options, PageRequestImpl.of(page, size));
+        })
             .map(listResult -> {
                 List<PhotoVo> vos = listResult.getItems().stream()
                     .map(PhotoVo::from).toList();
@@ -74,6 +88,9 @@ public class PhotoPublicEndpoint implements CustomEndpoint {
         var name = request.pathVariable("name");
         return client.fetch(Photo.class, name)
             .filter(p -> Boolean.TRUE.equals(p.getSpec().getVisible()))
+            .filterWhen(p -> client.fetch(Album.class, p.getSpec().getAlbumName())
+                .map(a -> Boolean.TRUE.equals(a.getSpec().getVisible()))
+                .defaultIfEmpty(false))
             .map(PhotoVo::from)
             .flatMap(vo -> ServerResponse.ok().bodyValue(vo))
             .switchIfEmpty(Mono.error(new ResponseStatusException(

@@ -48,13 +48,13 @@ public class GalleryFinderImpl implements GalleryFinder {
 
     @Override
     public Mono<AlbumVo> getAlbum(String slug) {
-        return client.listAll(Album.class,
+        return client.listBy(Album.class,
                 ListOptions.builder()
                     .fieldQuery(QueryFactory.equal("spec.slug", slug))
                     .andQuery(QueryFactory.equal("spec.visible", "true"))
                     .build(),
-                Sort.unsorted())
-            .next()
+                PageRequestImpl.of(1, 1, Sort.unsorted()))
+            .flatMap(result -> Mono.justOrEmpty(result.getItems().stream().findFirst()))
             .flatMap(album -> countPhotos(album.getMetadata().getName())
                 .map(count -> AlbumVo.from(album, count)));
     }
